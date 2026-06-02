@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LVT Invoices — Powered by Gs Wagon</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--k:#00a19a;--kd:#00726e;--r:#C0392B;--g:#27ae60;--w:#e67e22;--b:#2196F3;--bg:#121419;--s:#282a2f;--g7:#58595d;--g3:#b7b8ba;--wh:#fff;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--wh);font-family:'Source Sans 3',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.hdr{background:var(--bg);border-bottom:1px solid #1e2229;height:60px;padding:0 24px 0 28px;display:flex;align-items:center;gap:12px;position:relative;flex-shrink:0}
+.hdr::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--k)}
+.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--k)}
+.logo{width:34px;height:34px;background:var(--s);border:1px solid var(--k);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-left:6px}
+.h1{font-family:'Oswald',sans-serif;font-size:17px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.sub{font-size:9px;color:var(--k);letter-spacing:1.5px;text-transform:uppercase;font-style:italic}
+.pill{margin-left:auto;font-family:'Oswald',sans-serif;font-size:8px;color:var(--g3);background:var(--s);border:1px solid var(--g7);padding:3px 10px;border-radius:2px;letter-spacing:2px;text-transform:uppercase}
+.layout{display:grid;grid-template-columns:290px 1fr;flex:1;overflow:hidden}
+.side{background:var(--s);border-right:1px solid var(--g7);overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:16px}
+.slbl{font-family:'Oswald',sans-serif;font-size:9px;color:var(--k);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.slbl::before{content:'';width:3px;height:10px;background:var(--k);border-radius:1px;flex-shrink:0}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tab{flex:1;padding:6px;text-align:center;font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--g7);border-radius:2px;cursor:pointer;color:var(--g3);background:var(--bg);transition:all .15s}
+.tab.on{background:var(--k);color:var(--wh);border-color:var(--k)}
+.usec{display:none}.usec.on{display:block}
+input[type=file]{width:100%;font-size:11px;color:var(--g3);background:var(--bg);border:1px solid var(--g7);border-radius:2px;padding:5px 7px;cursor:pointer}
+input[type=file]::file-selector-button{background:var(--k);color:var(--wh);border:none;border-radius:2px;padding:3px 8px;font-family:'Oswald',sans-serif;font-size:9px;cursor:pointer;margin-right:6px}
+input[type=file]::file-selector-button:hover{background:var(--kd)}
+.chip{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--g7);border-left:3px solid var(--k);border-radius:3px;padding:6px 9px;font-family:monospace;font-size:10px;color:var(--wh);margin-top:7px}
+.cr{color:var(--k);font-size:9px;margin-left:auto}
+.cx{cursor:pointer;color:var(--g7);margin-left:7px;font-size:11px;background:none;border:none}
+.cx:hover{color:var(--r)}
+.fi{background:var(--bg);border:1px solid var(--g7);border-radius:2px;color:var(--wh);font-family:'Source Sans 3',sans-serif;font-size:11px;padding:4px 6px;width:100%;outline:none}
+.fi:focus{border-color:var(--k)}
+.fg{display:grid;grid-template-columns:1fr 56px 16px;gap:2px 4px}
+.fh{font-family:'Oswald',sans-serif;font-size:8px;color:var(--g3);letter-spacing:1px;text-transform:uppercase;padding-bottom:4px;border-bottom:1px solid var(--g7)}
+.rmb{background:none;border:none;cursor:pointer;color:var(--g7);font-size:12px;padding:0}
+.rmb:hover{color:var(--r)}
+.addb{display:flex;align-items:center;gap:5px;background:none;border:1px dashed var(--g7);border-radius:2px;color:var(--g3);font-size:11px;padding:5px 9px;cursor:pointer;width:100%;margin-top:6px}
+.addb:hover{border-color:var(--k);color:var(--k)}
+.run{background:var(--k);color:var(--wh);border:none;border-radius:3px;font-family:'Oswald',sans-serif;font-weight:600;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;padding:12px;cursor:pointer;width:100%;transition:background .2s;margin-top:auto}
+.run:hover:not(:disabled){background:var(--kd)}
+.run:disabled{background:var(--g7);cursor:not-allowed;opacity:.5}
+.main{overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center;height:100%}
+.empty h2{font-family:'Oswald',sans-serif;font-size:16px;color:var(--g7);letter-spacing:1px;text-transform:uppercase}
+.empty p{font-size:12px;color:var(--g7);max-width:300px;line-height:1.8}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:400px}
+.fc{background:var(--s);border:1px solid var(--g7);border-left:3px solid var(--k);border-radius:3px;padding:8px 11px;font-size:11px;color:var(--g3)}
+.stats{display:grid;gap:8px}
+.r4{grid-template-columns:repeat(4,1fr)}.r3{grid-template-columns:repeat(3,1fr)}
+.sc{background:var(--s);border:1px solid var(--g7);border-radius:3px;padding:11px 13px;position:relative;overflow:hidden}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.sc .lb{font-family:'Oswald',sans-serif;font-size:8px;color:var(--g3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px}
+.sc .vl{font-size:20px;font-weight:700}
+.sb{background:var(--s);border:1px solid var(--g7);border-left:4px solid var(--k);border-radius:3px;padding:12px 15px}
+.sb .lb{font-family:'Oswald',sans-serif;font-size:8px;color:var(--k);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.sb p{font-size:12px;color:var(--g3);line-height:1.8}
+.card{background:var(--s);border:1px solid var(--g7);border-radius:3px;overflow:hidden}
+.ch{background:var(--bg);padding:9px 14px;border-bottom:1px solid var(--g7);display:flex;align-items:center;gap:7px}
+.ch .bar{width:3px;height:12px;background:var(--k);border-radius:1px;flex-shrink:0}
+.ch h4{font-family:'Oswald',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+.ch .mt{font-family:monospace;font-size:9px;color:var(--k);margin-left:auto}
+.tw{overflow-x:auto;max-height:340px;overflow-y:auto}
+table.rt{width:100%;border-collapse:collapse;font-size:11px}
+table.rt th{font-family:'Oswald',sans-serif;font-size:8px;color:var(--g3);text-align:left;padding:8px 11px;border-bottom:1px solid var(--g7);letter-spacing:1.5px;text-transform:uppercase;background:var(--bg);white-space:nowrap}
+table.rt td{padding:8px 11px;border-bottom:1px solid rgba(88,89,93,.3);vertical-align:top}
+table.rt tr:hover td{background:rgba(0,161,154,.04)}
+.badge{display:inline-flex;align-items:center;font-family:'Oswald',sans-serif;font-size:8px;padding:2px 6px;border-radius:2px;font-weight:600;white-space:nowrap;letter-spacing:.5px}
+.b-ok{background:#0d2e20;color:#2ecc71;border:1px solid #1a5e35}
+.b-er{background:#2e0d0d;color:#e74c3c;border:1px solid #5e1a1a}
+.b-wn{background:#2e250d;color:#f39c12;border:1px solid #5e4a1a}
+.b-dp{background:#0d1e2e;color:#2196F3;border:1px solid #1a3a5e}
+.il{font-size:10px;line-height:1.5;margin-bottom:2px}
+.exp{background:none;border:1px solid var(--g7);border-radius:2px;color:var(--k);font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:4px 10px;cursor:pointer;margin-left:auto}
+.exp:hover{border-color:var(--k);background:rgba(0,161,154,.08)}
+.sp{width:26px;height:26px;border:2px solid var(--g7);border-top-color:var(--k);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld{display:flex;flex-direction:column;align-items:center;padding:40px;background:var(--s);border:1px solid var(--g7);border-radius:3px;font-family:'Oswald',sans-serif;font-size:11px;color:var(--k);letter-spacing:1px;text-transform:uppercase}
+.mf{margin-bottom:5px}
+.mf label{font-family:'Oswald',sans-serif;font-size:8px;color:var(--g3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:2px}
+.hint{font-size:10px;color:var(--g7);line-height:1.5;margin-top:5px}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--g7);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--k)}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="logo">&#128269;</div>
+  <div><div class="h1">LVT Invoices</div><div class="sub">Powered by Gs Wagon</div></div>
+  <div class="pill">Rule-Based Audit</div>
+</div>
+<div class="layout">
+  <div class="side">
+    <div>
+      <div class="slbl">Invoice File</div>
+      <div class="tabs">
+        <div class="tab on" id="tabX" onclick="sw('x')">Excel / CSV</div>
+        <div class="tab" id="tabP" onclick="sw('p')">PDF</div>
+      </div>
+      <div class="usec on" id="secX">
+        <input type="file" id="fileX" accept=".xlsx,.xls,.csv" onchange="loadXlsx(this)"/>
+        <div id="chipX" style="display:none" class="chip">
+          <span>&#128196;</span><span id="chipXN" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <span id="chipXR" class="cr"></span><button class="cx" onclick="clearX()">&#10005;</button>
+        </div>
+      </div>
+      <div class="usec" id="secP">
+        <input type="file" id="fileP" accept=".pdf" onchange="loadPdf(this)"/>
+        <div id="chipP" style="display:none" class="chip">
+          <span>&#128196;</span><span id="chipPN" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <span id="chipPR" class="cr"></span><button class="cx" onclick="clearP()">&#10005;</button>
+        </div>
+        <div class="hint">Reads Alert Alarm Hawaii PDF format. Extracts invoice #, WO, description and amount automatically.</div>
+      </div>
+    </div>
+    <div id="xMap" style="display:none">
+      <div class="slbl">Column Mapping</div>
+      <div id="mFields"></div>
+      <div class="mf">
+        <label>Charge columns (Ctrl/Cmd = multi)</label>
+        <select id="amtSel" multiple style="height:60px;background:var(--bg);border:1px solid var(--g7);border-radius:2px;color:var(--wh);font-size:11px;padding:3px 6px;width:100%;outline:none" onchange="updAmt(this)"></select>
+      </div>
+    </div>
+    <div>
+      <div class="slbl">Fee Schedule</div>
+      <div class="fg" style="margin-bottom:4px">
+        <div class="fh">Service</div><div class="fh">Rate ($)</div><div class="fh"></div>
+      </div>
+      <div id="fees"></div>
+      <button class="addb" onclick="addFee()">+ Add service</button>
+    </div>
+    <button class="run" id="runBtn" onclick="go()" disabled>&#128269; Run Audit</button>
+  </div>
+  <div class="main" id="main">
+    <div class="empty">
+      <div style="font-size:38px;opacity:.15">&#128203;</div>
+      <h2>LVT Invoice Audit</h2>
+      <p>Upload an Excel, CSV or PDF file then click Run Audit to check every row against LVT billing rules.</p>
+      <div class="fgrid">
+        <div class="fc">&#128308; WOT billing detection</div>
+        <div class="fc">&#129518; Math error checking</div>
+        <div class="fc">&#10697; Duplicate detection</div>
+        <div class="fc">&#128178; Fee schedule validation</div>
+        <div class="fc">&#128295; Setup + Transport rule</div>
+        <div class="fc">&#128196; PDF auto-parsing</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+var mode='x',pData=[],hdrs=[],cMap={amts:[],pdf:false},aRows=[];
+var fees=[
+  {s:"Standard Service",r:230},{s:"Setup New Location",r:399},{s:"Same Site Move",r:299},
+  {s:"Offsite Move - Take Down and Transport",r:230},{s:"Offsite Move - New Setup",r:399},
+  {s:"Intake",r:125},{s:"Pre-Deployment",r:75},{s:"Forklift Fee Per Unit",r:125}
+];
+var BUNDLED=["troubleshoot","refuel","deactivat","location move"];
+var ADDL=["mileage","mast cable","scissor lift","bucket truck","additional equipment"];
+function rf(){document.getElementById("fees").innerHTML=fees.map(function(f,i){return '<div class="fg" style="margin-bottom:2px"><input class="fi" type="text" value="'+xe(f.s)+'" oninput="fees['+i+'].s=this.value"/><input class="fi" type="number" value="'+f.r+'" oninput="fees['+i+'].r=parseFloat(this.value)||0"/><button class="rmb" onclick="fees.splice('+i+',1);rf()">&#10005;</button></div>';}).join("");}
+function addFee(){fees.push({s:"",r:""});rf();}
+function xe(s){return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");}
+rf();
+function sw(t){mode=t;document.getElementById("tabX").className="tab"+(t==="x"?" on":"");document.getElementById("tabP").className="tab"+(t==="p"?" on":"");document.getElementById("secX").className="usec"+(t==="x"?" on":"");document.getElementById("secP").className="usec"+(t==="p"?" on":"");document.getElementById("xMap").style.display="none";pData=[];hdrs=[];aRows=[];document.getElementById("runBtn").disabled=true;document.getElementById("main").innerHTML=emH();}
+function emH(){return '<div class="empty"><div style="font-size:38px;opacity:.15">&#128203;</div><h2>No File Loaded</h2><p>Upload a file to begin.</p></div>';}
+function loadXlsx(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});var json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:""});if(json.length<2){alert("File appears empty.");return;}// Find real header row - first row with 3+ non-empty string cells
+      var hIdx=0;
+      for(var ri=0;ri<Math.min(10,json.length);ri++){
+        var ne=json[ri].filter(function(c){return c!==undefined&&c!==null&&String(c).trim()!==""&&isNaN(c);}).length;
+        if(ne>=3){hIdx=ri;break;}
+      }
+      hdrs=json[hIdx].map(function(h){return String(h||"").trim();});
+      // Remove empty header columns
+      var vCols=[];
+      hdrs.forEach(function(h,i){if(h)vCols.push(i);});
+      hdrs=vCols.map(function(i){return hdrs[i];});
+      pData=json.slice(hIdx+1).filter(function(row){return row.some(function(c){return c!==undefined&&c!==null&&c!=="";});});
+      pData=pData.map(function(row){return vCols.map(function(i){return row[i]!==undefined?row[i]:"";});});
+      cMap=autoMap(hdrs);cMap.amts=[];cMap.pdf=false;
+      var cd=em(hdrs,"charge")||fm(hdrs,["charge","total","amount","billed","fee","cost"]);if(cd)cMap.amts=[cd];document.getElementById("chipXN").textContent=f.name;document.getElementById("chipXR").textContent=pData.length+" rows";document.getElementById("chipX").style.display="flex";document.getElementById("runBtn").disabled=false;showXMap();showPrev();}catch(err){alert("Error: "+err.message);}};r.readAsArrayBuffer(f);}
+function clearX(){pData=[];hdrs=[];aRows=[];document.getElementById("fileX").value="";document.getElementById("chipX").style.display="none";document.getElementById("xMap").style.display="none";document.getElementById("runBtn").disabled=true;document.getElementById("main").innerHTML=emH();}
+function em(h,n){var l=n.toLowerCase();var i=h.findIndex(function(x){return x.toLowerCase().trim()===l;});return i>=0?h[i]:"";}
+function fm(h,ks){var l=h.map(function(x){return x.toLowerCase();});var i=l.findIndex(function(x){return ks.some(function(k){return x.includes(k);});});return i>=0?h[i]:"";}
+function autoMap(h){return{id:em(h,"work order")||fm(h,["work order","wo#","invoice","inv"]),v:fm(h,["vendor","supplier","company","name"]),sv:fm(h,["service","item","description","desc","product","code"]),tk:em(h,"work order task")||fm(h,["work order task","task"]),wt:em(h,"work type")||fm(h,["work type","worktype","type","category"]),qty:fm(h,["qty","quantity","units","count"]),up:fm(h,["unit price","unit rate","each","per unit"]),amts:[]};}
+var COLF=[{k:"id",l:"Work Order"},{k:"tk",l:"Work Order Task"},{k:"wt",l:"Work Type"},{k:"v",l:"Vendor (optional)"}];
+function showXMap(){
+  document.getElementById("xMap").style.display="block";
+  var html="";
+  COLF.forEach(function(f){
+    var opts='<option value="">-- not mapped --</option>';
+    hdrs.forEach(function(h){opts+='<option value="'+xe(h)+'"'+(h===cMap[f.k]?' selected':'')+'>'+xe(h)+'</option>';});
+    html+='<div class="mf"><label>'+f.l+'</label><select class="fi" id="cm_'+f.k+'">'+opts+'</select></div>';
+  });
+  document.getElementById("mFields").innerHTML=html;
+  COLF.forEach(function(f){
+    var el=document.getElementById("cm_"+f.k);
+    if(el){el.addEventListener("change",function(){cMap[f.k]=this.value;});}
+  });
+  var as=document.getElementById("amtSel");
+  var ahtml="";
+  hdrs.forEach(function(h){var s=(cMap.amts||[]).indexOf(h)>=0?" selected":"";ahtml+='<option value="'+xe(h)+'"'+s+'>'+xe(h)+'</option>';});
+  as.innerHTML=ahtml;
+}
+function updAmt(sel){cMap.amts=Array.prototype.slice.call(sel.options).filter(function(o){return o.selected;}).map(function(o){return o.value;});}
+function showPrev(){var rows=pData.slice(0,5).map(function(row){return "<tr>"+hdrs.map(function(_,i){return "<td>"+xe(String(row[i]||""))+"</td>";}).join("")+"</tr>";}).join("");document.getElementById("main").innerHTML='<div class="card"><div class="ch"><div class="bar"></div><h4>Data Preview</h4><span class="mt">'+pData.length+' rows &middot; '+hdrs.length+' cols</span></div><div class="tw"><table class="rt"><thead><tr>'+hdrs.map(function(h){return "<th>"+xe(h)+"</th>";}).join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';}
+function loadPdf(inp){var f=inp.files[0];if(!f)return;document.getElementById("main").innerHTML='<div class="ld"><div class="sp"></div>Parsing PDF...</div>';var r=new FileReader();r.onload=function(e){pdfjsLib.getDocument({data:new Uint8Array(e.target.result)}).promise.then(function(pdf){var proms=[];for(var i=1;i<=pdf.numPages;i++){proms.push(pdf.getPage(i).then(function(pg){return pg.getTextContent().then(function(tc){return tc.items.map(function(it){return it.str;}).join("\n");});}));}return Promise.all(proms);}).then(function(pages){var invs=[];pages.forEach(function(txt,idx){var inv=parsePg(txt,idx+1);if(inv)invs.push(inv);});if(invs.length===0){alert("Could not extract invoice data.");document.getElementById("main").innerHTML=emH();return;}hdrs=["Invoice #","Work Order","Description","Amount","Notes","Page"];pData=invs.map(function(v){return[v.n,v.wo,v.d,v.a,v.nt,v.pg];});cMap={amts:[],pdf:true};document.getElementById("chipPN").textContent=f.name;document.getElementById("chipPR").textContent=invs.length+" invoices";document.getElementById("chipP").style.display="flex";document.getElementById("runBtn").disabled=false;showPdfPrev(invs);}).catch(function(err){alert("PDF error: "+err.message);document.getElementById("main").innerHTML=emH();});};r.readAsArrayBuffer(f);}
+function clearP(){pData=[];hdrs=[];aRows=[];document.getElementById("fileP").value="";document.getElementById("chipP").style.display="none";document.getElementById("runBtn").disabled=true;document.getElementById("main").innerHTML=emH();}
+function parsePg(txt,pg){var lines=txt.split("\n").map(function(l){return l.trim();}).filter(function(l){return l.length>0;});var n="",wo="",descs=[],amts=[],nt="",bal=0;for(var i=0;i<lines.length;i++){if(lines[i]==="Invoice Number"&&lines[i+1])n=lines[i+1].trim();else{var m=lines[i].match(/^Invoice Number\s+(\d+)/);if(m)n=m[1];}if(lines[i]==="PO Number"&&lines[i+1]&&/^WO/i.test(lines[i+1]))wo=lines[i+1].trim();else{var m=lines[i].match(/^PO Number\s+(WO\S+)/i);if(m)wo=m[1];}var m2=lines[i].match(/^(\d+\.?\d*)\s+(.+?)\s+(\d+\.?\d+)\s+(\d+\.?\d+)$/);if(m2&&parseFloat(m2[3])>0){descs.push(m2[2].trim());amts.push(parseFloat(m2[4]));}var m3=lines[i].match(/Invoice Balance Due:?\s*\$?([\d,]+\.?\d*)/);if(m3)bal=parseFloat(m3[1].replace(/,/g,""));if(lines[i]==="IMPORTANT MESSAGES"){var nl=[];for(var j=i+1;j<Math.min(i+6,lines.length);j++){if(lines[j]==="Please return this portion. Do not staple or fold.")break;if(lines[j].length>3)nl.push(lines[j]);}nt=nl.join(" ");}}var desc=descs.length>0?descs[0]:"Labor for repair call";var amt=amts.length>0?amts.reduce(function(a,b){return a+b;},0):bal;if(!n&&!wo&&amt===0)return null;return{pg:pg,n:n||("P"+pg),wo:wo,d:desc,a:amt,nt:nt};}
+function showPdfPrev(invs){var rows=invs.slice(0,8).map(function(v){return "<tr><td style='font-family:monospace;font-size:10px'>"+xe(v.n)+"</td><td style='font-family:monospace;font-size:10px'>"+xe(v.wo)+"</td><td>"+xe(v.d)+"</td><td style='font-family:monospace'>$"+v.a.toFixed(2)+"</td><td style='font-size:9px;color:var(--g7)'>"+xe(v.nt.slice(0,50))+"</td></tr>";}).join("");document.getElementById("main").innerHTML='<div class="card"><div class="ch"><div class="bar"></div><h4>PDF Parsed</h4><span class="mt">'+invs.length+' invoices found</span></div><div class="tw"><table class="rt"><thead><tr><th>Invoice #</th><th>Work Order</th><th>Description</th><th>Amount</th><th>Notes</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}
+function gv(row,k){var c=cMap[k];if(!c)return "";if(typeof c==="number")return String(row[c]||"");var i=hdrs.indexOf(c);return i>=0?String(row[i]||""):""}
+function ga(row){if(cMap.pdf)return typeof row[3]==="number"?row[3]:parseFloat(row[3])||0;var cols=cMap.amts||[];if(!cols.length)return 0;return cols.reduce(function(s,c){var i=hdrs.indexOf(c);return s+(i>=0?tn(row[i]):0);},0);}
+function tn(v){if(v==null||v==="")return 0;return parseFloat(String(v).replace(/[$, ]/g,""))||0;}
+function no(v){return String(v||"").toLowerCase().trim();}
+function go(){
+  if(!pData.length){alert("No data loaded.");return;}
+  var feeMap={};fees.forEach(function(f){if(f.s)feeMap[no(f.s)]=parseFloat(f.r)||0;});
+  var seen={},byId={};
+  pData.forEach(function(row,i){var id=cMap.pdf?no(row[1])||no(row[0]):no(gv(row,"id"));if(!id)id="__"+i;if(!byId[id])byId[id]=[];byId[id].push({row:row,i:i});});
+  aRows=pData.map(function(row,i){
+    var id,vd,sv,tk,wt,amt,ad,nt;
+    if(cMap.pdf){id=String(row[1]||row[0]||"");vd="Alert Alarm Hawaii";sv=String(row[2]||"");tk="";wt="";nt=String(row[4]||"");amt=ga(row);ad="$"+amt.toFixed(2);}
+    else{id=String(gv(row,"id")||"");vd=String(gv(row,"v")||"");sv=String(gv(row,"sv")||"");tk=String(gv(row,"tk")||"");wt=String(gv(row,"wt")||"");nt="";amt=ga(row);ad=amt>0?"$"+amt.toFixed(2):"$0.00";}
+    var sn=no(sv),idn=no(id),wn=no(wt),nn=no(nt);
+    var hi=sn.includes("intake")||sn.includes("pdqc")||nn.includes("intake");
+    var iss=[],st="ok",suggested=null;
+    // WOT check removed - WOT numbers are just task IDs, not billing violations
+    if(!cMap.pdf){var qty=tn(gv(row,"qty")),up=tn(gv(row,"up"));if(qty>0&&up>0&&amt>0){var ex=Math.round(qty*up*100)/100;if(Math.abs(ex-amt)>0.02){iss.push("Math error: "+qty+" x $"+up.toFixed(2)+" = $"+ex.toFixed(2)+", billed $"+amt.toFixed(2)+".");if(st==="ok")st="error";}}}
+    var dk=idn+"|"+no(vd)+"|"+amt.toFixed(2);if(id&&amt>0){if(seen[dk]){iss.push("Duplicate: matches Work Order, Vendor, and Amount from row "+seen[dk]+".");st="duplicate";suggested=0;}else{seen[dk]=i+1;}}
+    if(!hi&&amt>0){var fks=Object.keys(feeMap);var matched=false;for(var fi=0;fi<fks.length;fi++){var k=fks[fi];if(sn===k||sn.includes(k)||(k.length>4&&k.split(" ").every(function(w){return sn.includes(w);}))){matched=true;var rt=feeMap[k];if(rt===0){break;}var df=Math.abs(amt-rt)/rt;if(df>0.05){iss.push("Fee violation: expected $"+rt+", billed $"+amt.toFixed(2)+" ("+(df*100).toFixed(1)+"% off).");if(st==="ok")st="warning";suggested=rt;}break;}}if(!matched){var validRates=Object.values(feeMap).filter(function(r){return r>0;});var onSchedule=validRates.some(function(r){return Math.abs(amt-r)/r<=0.05;});if(!onSchedule){iss.push("Amount $"+amt.toFixed(2)+" does not match any rate in the fee schedule — requires approval.");if(st==="ok")st="warning";suggested=null;}}}
+    // Bundling check: handled at WO level below - skip per-row keyword check
+    // Per-WO bundling rule:
+    // A WO should only have ONE line item with a charge > $0
+    // Intake ($125) is always allowed as an add-on alongside one other fee
+    // If 2+ line items have a charge > $0 (excluding Intake), that is a bundling violation
+    var grp=byId[idn]||[];
+    if(grp.length>1){
+      // Count charged line items, separating intake from non-intake
+      // Count charged non-intake line items
+      var chargedNonIntake=grp.filter(function(g){
+        var gsv=no(cMap.pdf?String(g.row[2]||""):gv(g.row,"sv"));
+        var gwt=no(cMap.pdf?String(g.row[5]||""):gv(g.row,"wt"));
+        var isIntake=gsv.includes("intake")||gwt.includes("intake");
+        var gamt=ga(g.row);
+        return gamt>0&&!isIntake;
+      });
+      if(chargedNonIntake.length>1){
+        // Multiple charged lines on same WO — vendor should only bill one fee
+        var totalCharged=grp.reduce(function(s,g){return s+ga(g.row);},0);
+        // Determine what the correct single fee should be based on tasks
+        var grpSvcs=grp.map(function(g){return no(cMap.pdf?String(g.row[2]||""):gv(g.row,"sv"));});
+        var grpWts=grp.map(function(g){return no(cMap.pdf?String(g.row[5]||""):gv(g.row,"wt"));});
+        var allText=grpSvcs.join(" ")+" "+grpWts.join(" ");
+        var correctFee=230;var correctLabel="Standard Service ($230)";
+        if(allText.includes("setup")&&(allText.includes("transport")||allText.includes("take down"))){correctFee=399;correctLabel="Setup New Location ($399)";}
+        else if(allText.includes("setup")||allText.includes("new location")){correctFee=399;correctLabel="Setup New Location ($399)";}
+        else if((allText.includes("offsite")||allText.includes("off-site"))&&allText.includes("setup")){correctFee=629;correctLabel="Offsite Move ($629)";}
+        else if(allText.includes("same site")||allText.includes("same-site")){correctFee=299;correctLabel="Same Site Move ($299)";}
+        else if(allText.includes("relocation")||allText.includes("relocat")){correctFee=399;correctLabel="Setup New Location ($399)";}
+        // Only flag if total charged is MORE than the correct single fee, and this row has a charge
+        if(totalCharged>correctFee+0.02&&amt>0){
+          var overbilled=totalCharged-correctFee;
+          var matchingRow=chargedNonIntake.find(function(g){return Math.abs(ga(g.row)-correctFee)<=0.02;});
+          var keeperIdx=matchingRow?matchingRow.i:chargedNonIntake[0].i;
+          if(i===keeperIdx){
+            st="ok";suggested=null;
+          } else {
+            iss.push("Bundling violation: "+chargedNonIntake.length+" line items charged on same WO. Should be single fee of "+correctLabel+". Billed $"+totalCharged.toFixed(2)+", overbilled by $"+Math.abs(overbilled).toFixed(2)+".");
+            if(st==="ok")st="error";
+            suggested=0;
+          }
+        }
+      }
+    }
+    if(ADDL.some(function(ak){return sn.includes(ak)||nn.includes(ak);})){iss.push("Additional compensation requires prior LVT Manager approval.");if(st==="ok")st="warning";}
+    if(amt>0&&!id.trim()&&!tk.trim()){iss.push("No Work Order or WOT reference found — requires approval.");if(st==="ok")st="error";}
+
+    return{row:i+1,id:id,vd:vd,sv:sv,tk:tk,wt:wt,amt:ad,nt:nt,status:st,issues:iss,suggested:suggested,amtNum:amt};
+  });
+  // Sort rows numerically by WO# (extract numeric portion for prefix-safe sorting)
+  aRows.sort(function(a,b){
+    var na=parseInt((a.id||"").replace(/[^0-9]/g,""),10)||0;
+    var nb=parseInt((b.id||"").replace(/[^0-9]/g,""),10)||0;
+    return na-nb;
+  });
+  render();
+}
+function render(){
+  var tot=aRows.length,wot=aRows.filter(function(r){return r.issues.some(function(x){return x.includes("WOT");});}).length,me=aRows.filter(function(r){return r.issues.some(function(x){return x.includes("Math error");});}).length,dp=aRows.filter(function(r){return r.status==="duplicate";}).length,fv=aRows.filter(function(r){return r.issues.some(function(x){return x.includes("Fee violation");});}).length,mw=aRows.filter(function(r){return r.issues.some(function(x){return x.includes("No Work Order");});}).length,is=aRows.filter(function(r){return r.status!=="ok";}).length,cl=tot-is;
+  var pts=[];if(wot>0)pts.push(wot+" WOT violation"+(wot>1?"s":""));if(me>0)pts.push(me+" math error"+(me>1?"s":""));if(fv>0)pts.push(fv+" fee violation"+(fv>1?"s":""));if(dp>0)pts.push(dp+" duplicate"+(dp>1?"s":""));if(mw>0)pts.push(mw+" missing WO"+(mw>1?"s":""));
+  var narr=is===0?"All "+tot+" invoices passed all LVT billing rule checks. No issues found.":"Audited "+tot+" invoice"+(tot>1?"s":"")+" — "+is+" issue"+(is>1?"s":"")+" found: "+pts.join(", ")+". "+cl+" row"+(cl!==1?"s":"")+" are clean.";
+  // Calculate totals
+  var fmt=function(v){return"$"+v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,",");};
+  var totalApproved=0,totalSuggested=0,disputeAmount=0;
+  aRows.forEach(function(r){
+    if(r.status==="ok"){totalApproved+=r.amtNum;}
+    else if(r.suggested!==null){totalSuggested+=r.suggested;disputeAmount+=(r.amtNum-r.suggested);}
+  });
+  var totalToPay=totalApproved+totalSuggested;
+  function bdg(s){return{ok:'<span class="badge b-ok">&#10003; CLEAN</span>',error:'<span class="badge b-er">&#10007; ERROR</span>',warning:'<span class="badge b-wn">&#9888; WARN</span>',duplicate:'<span class="badge b-dp">&#10697; DUP</span>'}[s]||'<span class="badge b-ok">&#10003; CLEAN</span>';}
+  function ic(s){return s==="error"?"#e74c3c":s==="duplicate"?"#2196F3":"#f39c12";}
+  var ip=!!cMap.pdf;
+  var rows=aRows.map(function(r){
+    var sugCell=r.status==="ok"?'<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>':(r.suggested===null?'<span style="font-size:10px;color:var(--w)">Needs Review</span>':r.suggested===0?'<span style="font-family:monospace;font-size:10px;color:var(--r)">$0.00</span>':'<span style="font-family:monospace;font-size:10px;color:var(--g)">$'+r.suggested.toFixed(2)+'</span>');
+    var showIssues=r.status!=="ok"&&(r.suggested===null||r.suggested===0);
+    var issCell=r.status==="ok"?'<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>':showIssues?(r.issues.length?r.issues.map(function(x){return '<div class="il" style="color:'+ic(r.status)+'">'+xe(x)+"</div>";}).join(""):'<span style="font-size:10px;color:var(--g7);font-style:italic">None</span>'):'<span style="font-size:10px;color:var(--g)">Fee updated</span>';
+    return "<tr><td style='font-family:monospace;color:var(--g7);font-size:10px'>"+r.row+"</td><td style='font-family:monospace;font-size:10px'>"+xe(r.id)+"</td>"+(ip?"":"<td style='font-size:10px'>"+xe(r.tk)+"</td>")+"<td>"+xe(r.sv)+"</td>"+(ip?"<td style='font-size:9px;color:var(--g7)'>"+xe(r.nt.slice(0,50))+"</td>":"<td style='font-size:10px'>"+xe(r.wt)+"</td>")+"<td style='font-family:monospace;font-size:10px'>"+r.amt+"</td><td>"+sugCell+"</td><td>"+bdg(r.status)+"</td><td>"+issCell+"</td></tr>";
+  }).join("");
+  function sc(l,v,c){return'<div class="sc"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+c+'"></div><div class="lb">'+l+'</div><div class="vl" style="color:'+c+'">'+v+"</div></div>";}
+  var ths=ip?"<th>#</th><th>Invoice/WO</th><th>Description</th><th>Notes</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th>":"<th>#</th><th>Work Order</th><th>WO Task</th><th>Service</th><th>Work Type</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th>";
+  document.getElementById("main").innerHTML=
+    '<div class="stats r4" style="grid-template-columns:repeat(5,1fr)">'+sc("Total Invoices",tot,"var(--k)")+sc("Issues Found",is,is>0?"var(--r)":"var(--g)")+sc("WOT Violations",wot,wot>0?"var(--r)":"var(--g)")+sc("Missing WO",mw,mw>0?"var(--r)":"var(--g)")+sc("Math Errors",me,me>0?"var(--r)":"var(--g)")+"</div>"
+    +'<div class="stats r4">'+sc("Fee Violations",fv,fv>0?"var(--w)":"var(--g)")+sc("Duplicates",dp,dp>0?"var(--w)":"var(--g)")+sc("Clean Rows",cl,cl===tot?"var(--g)":"var(--g3)")+sc("Approved to Pay",fmt(totalApproved),"var(--g)")+"</div>"
+    +'<div class="stats r4" style="grid-template-columns:repeat(2,1fr)">'+sc("Dispute Amount",fmt(disputeAmount),"var(--w)")+sc("Total Recommended to Pay",fmt(totalToPay),"var(--k)")+"</div>"
+    +'<div class="sb"><div class="lb">&#9670; Audit Summary</div><p>'+narr+"</p></div>"
+    +'<div class="card"><div class="ch"><div class="bar"></div><h4>Audit Results</h4><button class="exp" onclick="expXL()" style="margin-left:auto">&#8595; Export to Excel</button><button class="exp" id="gsBtn" onclick="expGS()" style="margin-left:6px;background:rgba(0,161,154,.1);border-color:var(--k);color:var(--k)">&#9650; Export to Google Sheets</button></div>'
+    +'<div class="tw"><table class="rt"><thead><tr>'+ths+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+async function expGS(){
+  if(!aRows.length)return;
+  var btn=document.getElementById("gsBtn");
+  btn.textContent="⏳ Uploading...";btn.disabled=true;
+  var ip=!!cMap.pdf;
+  // Build CSV
+  var headers=["Row #","Work Order/Invoice"];
+  if(!ip)headers.push("WO Task");
+  headers.push("Service");
+  if(ip)headers.push("Notes");else headers.push("Work Type");
+  headers.push("Amount","Suggested","Status","Issues");
+  var escape=function(v){var s=String(v||"");if(s.includes(",")||s.includes('"')||s.includes("\n"))s='"'+s.replace(/"/g,'""')+'"';return s;};
+  var csvRows=[headers.join(",")];
+  aRows.forEach(function(r){
+    var row=[r.row,r.id];
+    if(!ip)row.push(r.tk);
+    row.push(r.sv);
+    if(ip)row.push(r.nt);else row.push(r.wt);
+    var sug=r.status==="ok"?"—":r.suggested===null?"Needs Review":"$"+r.suggested.toFixed(2);
+    row.push(r.amt,sug,r.status.toUpperCase(),r.issues.join("; "));
+    csvRows.push(row.map(escape).join(","));
+  });
+  var csv=csvRows.join("\n");
+  var fname="LVT_audit_"+new Date().toISOString().slice(0,10);
+  // Use Claude API to upload via Google Drive MCP
+  try{
+    var resp=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",max_tokens:1000,
+        mcp_servers:[{type:"url",url:"https://drivemcp.googleapis.com/mcp/v1",name:"google-drive"}],
+        messages:[{role:"user",content:"Create a Google Sheet from this CSV data. Title it '"+fname+"'. Return only the URL of the created sheet, nothing else.\n\n"+csv}]
+      })
+    });
+    var data=await resp.json();
+    var text=(data.content||[]).filter(function(b){return b.type==="text";}).map(function(b){return b.text;}).join(" ");
+    var urlMatch=text.match(/https:\/\/docs\.google\.com\/spreadsheets\/[^\s"]+/);
+    if(urlMatch){
+      btn.textContent="✓ Opened in Sheets";
+      window.open(urlMatch[0],"_blank");
+    } else {
+      btn.textContent="✓ Uploaded";
+      alert("Uploaded! "+text);
+    }
+  }catch(err){
+    btn.textContent="✗ Failed";
+    alert("Export failed: "+err.message);
+  }
+  setTimeout(function(){btn.textContent="▲ Export to Google Sheets";btn.disabled=false;},3000);
+}
+function expXL(){
+  if(!aRows.length)return;
+  var ip=!!cMap.pdf;
+  var rows=aRows.map(function(r){var o={"Row #":r.row,"Work Order/Invoice":r.id};if(!ip)o["WO Task"]=r.tk;o["Service"]=r.sv;if(ip)o["Notes"]=r.nt;else o["Work Type"]=r.wt;o["Amount"]=r.amt;o["Suggested"]=r.status==="ok"?"—":r.suggested===null?"Needs Review":"$"+r.suggested.toFixed(2);o["Status"]=r.status.toUpperCase();o["WOT Violation"]=r.issues.some(function(x){return x.includes("WOT");})?"YES":"";o["Issues"]=r.issues.join("; ");return o;});
+  // Calculate totals for export
+  var expApproved=0,expSuggested=0,expDispute=0;
+  aRows.forEach(function(r){
+    if(r.status==="ok"){expApproved+=r.amtNum;}
+    else if(r.suggested!==null){expSuggested+=r.suggested;expDispute+=(r.amtNum-r.suggested);}
+  });
+  var expTotal=expApproved+expSuggested;
+  var fmt2=function(v){return"$"+v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,",");};
+  rows.push({});
+  rows.push({"Row #":"","Work Order/Invoice":"","Service":"DISPUTE AMOUNT","Amount":fmt2(expDispute),"Status":"","Issues":""});
+  rows.push({"Row #":"","Work Order/Invoice":"","Service":"TOTAL RECOMMENDED TO PAY","Amount":fmt2(expTotal),"Status":"","Issues":""});
+  var ws=XLSX.utils.json_to_sheet(rows);
+  ws["!cols"]=[{wch:6},{wch:18},{wch:20},{wch:26},{wch:20},{wch:12},{wch:14},{wch:12},{wch:14},{wch:70}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Audit Results");
+  XLSX.writeFile(wb,"LVT_audit_"+new Date().toISOString().slice(0,10)+".xlsx");
+}
+</script>
+</body>
+</html>
