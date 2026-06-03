@@ -77,6 +77,7 @@ table.rt tr:hover td{background:rgba(0,161,154,.04)}
 .b-pend{background:#1e1e2e;color:#9b59b6;border:1px solid #4a2e6e}
 .b-conf{background:#0d2e20;color:#2ecc71;border:1px solid #1a5e35}
 .b-disp{background:#2e0d0d;color:#e74c3c;border:1px solid #5e1a1a}
+.b-total{background:#1a1a1a;color:#888;border:1px solid #444}
 .il{font-size:10px;line-height:1.5;margin-bottom:2px}
 .exp{background:none;border:1px solid var(--g7);border-radius:2px;color:var(--k);font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:4px 10px;cursor:pointer}
 .exp:hover{border-color:var(--k);background:rgba(0,161,154,.08)}
@@ -304,6 +305,27 @@ function ga(row){if(cMap.pdf)return typeof row[3]==="number"?row[3]:parseFloat(r
 function tn(v){if(v==null||v==="")return 0;return parseFloat(String(v).replace(/[$, ]/g,""))||0;}
 function no(v){return String(v||"").toLowerCase().trim();}
 
+function isAddon(sv,wt){
+  var s=no(sv),w=no(wt);
+  return s.includes("intake")||s.includes("pdqc")||w.includes("intake")
+      ||s.includes("pre-deployment")||s.includes("pre deployment")||s.includes("predeployment")
+      ||w.includes("pre-deployment")||w.includes("pre deployment")||w.includes("predeployment");
+}
+function isIntake(sv,wt){
+  var s=no(sv),w=no(wt);
+  return s.includes("intake")||s.includes("pdqc")||w.includes("intake");
+}
+function isPreDep(sv,wt){
+  var s=no(sv),w=no(wt);
+  return s.includes("pre-deployment")||s.includes("pre deployment")||s.includes("predeployment")
+      ||w.includes("pre-deployment")||w.includes("pre deployment")||w.includes("predeployment");
+}
+function isTotalRow(sv){
+  var s=no(sv);
+  return s==="total"||s==="subtotal"||s.includes("invoice total")||s.includes("invoice subtotal")
+      ||s==="grand total"||s==="amount due"||s==="balance due";
+}
+
 function go(){
   if(!pData.length){alert("No data loaded.");return;}
   var feeMap={};fees.forEach(function(f){if(f.s)feeMap[no(f.s)]=parseFloat(f.r)||0;});
@@ -313,49 +335,114 @@ function go(){
   var sessionDate=new Date().toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
   currentSessionId=newSessionId();
 
-  pData.forEach(function(row,i){var id=cMap.pdf?no(row[1])||no(row[0]):no(gv(row,"id"));if(!id)id="__"+i;if(!byId[id])byId[id]=[];byId[id].push({row:row,i:i});});
+  // Build byId index — exclude total rows
+  pData.forEach(function(row,i){
+    var sv=cMap.pdf?String(row[2]||""):gv(row,"sv");
+    if(isTotalRow(sv))return;
+    var id=cMap.pdf?no(row[1])||no(row[0]):no(gv(row,"id"));
+    if(!id)id="__"+i;
+    if(!byId[id])byId[id]=[];
+    byId[id].push({row:row,i:i});
+  });
+
+  // Calculate sum of all non-total rows for cross-check
+  var nonTotalSum=0;
+  pData.forEach(function(row){
+    var sv=cMap.pdf?String(row[2]||""):gv(row,"sv");
+    if(!isTotalRow(sv))nonTotalSum+=ga(row);
+  });
+
   aRows=pData.map(function(row,i){
     var id,vd,sv,tk,wt,amt,ad,nt;
     if(cMap.pdf){id=String(row[1]||row[0]||"");vd=vendorName;sv=String(row[2]||"");tk="";wt="";nt=String(row[4]||"");amt=ga(row);ad="$"+amt.toFixed(2);}
     else{id=String(gv(row,"id")||"");vd=vendorName;sv=String(gv(row,"sv")||"");tk=String(gv(row,"tk")||"");wt=String(gv(row,"wt")||"");nt="";amt=ga(row);ad=amt>0?"$"+amt.toFixed(2):"$0.00";}
     var sn=no(sv),idn=no(id),wn=no(wt),nn=no(nt);
-    var hi=sn.includes("intake")||sn.includes("pdqc")||nn.includes("intake");
     var iss=[],st="ok",suggested=null;
-    // Cross-session duplicate check
+
+    // ── TOTAL ROW detection ──────────────────────────────────────────────
+    if(isTotalRow(sv)){
+      var diff=Math.abs(amt-nonTotalSum);
+      if(diff>0.02){
+        iss.push("Invoice total $"+amt.toFixed(2)+" does not match sum of line items $"+nonTotalSum.toFixed(2)+" — difference of $"+diff.toFixed(2)+".");
+        st="warning";
+      }
+      return{row:i+1,id:id,vd:vendorName,sv:sv,tk:tk,wt:wt,amt:ad,nt:nt,status:st,issues:iss,suggested:null,amtNum:amt,sessionId:currentSessionId,rowIdx:i,isTotal:true};
+    }
+
+    // ── Cross-session duplicate check ────────────────────────────────────
     var woKey=id.trim().toLowerCase();
     if(woKey&&wom[woKey]&&wom[woKey].firstSeen&&wom[woKey].firstSeen!==sessionDate){
       iss.push("Cross-session duplicate: WO "+id+" was previously seen on "+wom[woKey].firstSeen+" ("+wom[woKey].vendor+").");
       if(st==="ok")st="warning";
     }
+
+    // ── Math error check ─────────────────────────────────────────────────
     if(!cMap.pdf){var qty=tn(gv(row,"qty")),up=tn(gv(row,"up"));if(qty>0&&up>0&&amt>0){var ex=Math.round(qty*up*100)/100;if(Math.abs(ex-amt)>0.02){iss.push("Math error: "+qty+" x $"+up.toFixed(2)+" = $"+ex.toFixed(2)+", billed $"+amt.toFixed(2)+".");if(st==="ok")st="error";}}}
-    var dk=idn+"|"+no(vd)+"|"+amt.toFixed(2);if(id&&amt>0){if(seen[dk]){iss.push("Duplicate: matches Work Order, Vendor, and Amount from row "+seen[dk]+".");st="duplicate";suggested=0;}else{seen[dk]=i+1;}}
-    if(!hi&&amt>0){var fks=Object.keys(feeMap);var matched=false;for(var fi=0;fi<fks.length;fi++){var k=fks[fi];if(sn===k||sn.includes(k)||(k.length>4&&k.split(" ").every(function(w){return sn.includes(w);}))){matched=true;var rt=feeMap[k];if(rt===0){break;}var df=Math.abs(amt-rt)/rt;if(df>0.05){iss.push("Fee violation: expected $"+rt+", billed $"+amt.toFixed(2)+" ("+(df*100).toFixed(1)+"% off).");if(st==="ok")st="warning";suggested=rt;}break;}}if(!matched){var validRates=Object.values(feeMap).filter(function(r){return r>0;});var onSchedule=validRates.some(function(r){return Math.abs(amt-r)/r<=0.05;});if(!onSchedule){iss.push("Amount $"+amt.toFixed(2)+" does not match any rate in the fee schedule — requires approval.");if(st==="ok")st="warning";suggested=null;}}}
+
+    // ── Within-session duplicate check ───────────────────────────────────
+    var dk=idn+"|"+no(vd)+"|"+amt.toFixed(2);
+    if(id&&amt>0){if(seen[dk]){iss.push("Duplicate: matches Work Order, Vendor, and Amount from row "+seen[dk]+".");st="duplicate";suggested=0;}else{seen[dk]=i+1;}}
+
+    // ── Fee schedule check (skip add-ons) ────────────────────────────────
+    if(!isAddon(sv,wt)&&amt>0){
+      var fks=Object.keys(feeMap);var matched=false;
+      for(var fi=0;fi<fks.length;fi++){
+        var k=fks[fi];
+        if(sn===k||sn.includes(k)||(k.length>4&&k.split(" ").every(function(w){return sn.includes(w);}))){
+          matched=true;var rt=feeMap[k];if(rt===0){break;}
+          var df=Math.abs(amt-rt)/rt;
+          if(df>0.05){iss.push("Fee violation: expected $"+rt+", billed $"+amt.toFixed(2)+" ("+(df*100).toFixed(1)+"% off).");if(st==="ok")st="warning";suggested=rt;}
+          break;
+        }
+      }
+      if(!matched){
+        var validRates=Object.values(feeMap).filter(function(r){return r>0;});
+        var onSchedule=validRates.some(function(r){return Math.abs(amt-r)/r<=0.05;});
+        if(!onSchedule){iss.push("Amount $"+amt.toFixed(2)+" does not match any rate in the fee schedule — requires approval.");if(st==="ok")st="warning";suggested=null;}
+      }
+    }
+
+    // ── Bundling check ───────────────────────────────────────────────────
     var grp=byId[idn]||[];
     if(grp.length>1){
-      var chargedNonIntake=grp.filter(function(g){var gsv=no(cMap.pdf?String(g.row[2]||""):gv(g.row,"sv"));var gwt=no(cMap.pdf?String(g.row[5]||""):gv(g.row,"wt"));var isIntake=gsv.includes("intake")||gwt.includes("intake");var gamt=ga(g.row);return gamt>0&&!isIntake;});
-      if(chargedNonIntake.length>1){
-        var totalCharged=grp.reduce(function(s,g){return s+ga(g.row);},0);
-        var grpSvcs=grp.map(function(g){return no(cMap.pdf?String(g.row[2]||""):gv(g.row,"sv"));});
-        var grpWts=grp.map(function(g){return no(cMap.pdf?String(g.row[5]||""):gv(g.row,"wt"));});
-        var allText=grpSvcs.join(" ")+" "+grpWts.join(" ");
-        var correctFee=230;var correctLabel="Standard Service ($230)";
-        if(allText.includes("setup")&&(allText.includes("transport")||allText.includes("take down"))){correctFee=399;correctLabel="Setup New Location ($399)";}
-        else if(allText.includes("setup")||allText.includes("new location")){correctFee=399;correctLabel="Setup New Location ($399)";}
-        else if((allText.includes("offsite")||allText.includes("off-site"))&&allText.includes("setup")){correctFee=629;correctLabel="Offsite Move ($629)";}
-        else if(allText.includes("same site")||allText.includes("same-site")){correctFee=299;correctLabel="Same Site Move ($299)";}
-        else if(allText.includes("relocation")||allText.includes("relocat")){correctFee=399;correctLabel="Setup New Location ($399)";}
-        if(totalCharged>correctFee+0.02&&amt>0){
-          var overbilled=totalCharged-correctFee;
-          var matchingRow=chargedNonIntake.find(function(g){return Math.abs(ga(g.row)-correctFee)<=0.02;});
-          var keeperIdx=matchingRow?matchingRow.i:chargedNonIntake[0].i;
-          if(i===keeperIdx){st="ok";suggested=null;}
-          else{iss.push("Bundling violation: "+chargedNonIntake.length+" line items charged on same WO. Should be single fee of "+correctLabel+". Billed $"+totalCharged.toFixed(2)+", overbilled by $"+Math.abs(overbilled).toFixed(2)+".");if(st==="ok")st="error";suggested=0;}
+      // Rule 1: If ANY row in the group is Intake → ignore bundling entirely
+      var grpHasIntake=grp.some(function(g){
+        var gsv=cMap.pdf?String(g.row[2]||""):gv(g.row,"sv");
+        var gwt=cMap.pdf?String(g.row[5]||""):gv(g.row,"wt");
+        return isIntake(gsv,gwt);
+      });
+      if(!grpHasIntake){
+        // Rule 2: Pre-Deployment is always a clean add-on — exclude from bundling check
+        var chargedNonAddon=grp.filter(function(g){
+          var gsv=cMap.pdf?String(g.row[2]||""):gv(g.row,"sv");
+          var gwt=cMap.pdf?String(g.row[5]||""):gv(g.row,"wt");
+          return ga(g.row)>0&&!isAddon(gsv,gwt);
+        });
+        if(chargedNonAddon.length>1){
+          var totalCharged=chargedNonAddon.reduce(function(s,g){return s+ga(g.row);},0);
+          var grpSvcs=chargedNonAddon.map(function(g){return no(cMap.pdf?String(g.row[2]||""):gv(g.row,"sv"));});
+          var grpWts=chargedNonAddon.map(function(g){return no(cMap.pdf?String(g.row[5]||""):gv(g.row,"wt"));});
+          var allText=grpSvcs.join(" ")+" "+grpWts.join(" ");
+          var correctFee=230;var correctLabel="Standard Service ($230)";
+          if(allText.includes("setup")&&(allText.includes("transport")||allText.includes("take down"))){correctFee=399;correctLabel="Setup New Location ($399)";}
+          else if(allText.includes("setup")||allText.includes("new location")){correctFee=399;correctLabel="Setup New Location ($399)";}
+          else if((allText.includes("offsite")||allText.includes("off-site"))&&allText.includes("setup")){correctFee=629;correctLabel="Offsite Move ($629)";}
+          else if(allText.includes("same site")||allText.includes("same-site")){correctFee=299;correctLabel="Same Site Move ($299)";}
+          else if(allText.includes("relocation")||allText.includes("relocat")){correctFee=399;correctLabel="Setup New Location ($399)";}
+          if(totalCharged>correctFee+0.02&&amt>0&&!isAddon(sv,wt)){
+            var overbilled=totalCharged-correctFee;
+            var matchingRow=chargedNonAddon.find(function(g){return Math.abs(ga(g.row)-correctFee)<=0.02;});
+            var keeperIdx=matchingRow?matchingRow.i:chargedNonAddon[0].i;
+            if(i===keeperIdx){st="ok";suggested=null;}
+            else{iss.push("Bundling violation: "+chargedNonAddon.length+" line items charged on same WO. Should be single fee of "+correctLabel+". Billed $"+totalCharged.toFixed(2)+", overbilled by $"+Math.abs(overbilled).toFixed(2)+".");if(st==="ok")st="error";suggested=0;}
+          }
         }
       }
     }
+
     if(ADDL.some(function(ak){return sn.includes(ak)||nn.includes(ak);})){iss.push("Additional compensation requires prior LVT Manager approval.");if(st==="ok")st="warning";}
     if(amt>0&&!id.trim()&&!tk.trim()){iss.push("No Work Order or WOT reference found — requires approval.");if(st==="ok")st="error";}
-    return{row:i+1,id:id,vd:vendorName,sv:sv,tk:tk,wt:wt,amt:ad,nt:nt,status:st,issues:iss,suggested:suggested,amtNum:amt,sessionId:currentSessionId,rowIdx:i};
+    return{row:i+1,id:id,vd:vendorName,sv:sv,tk:tk,wt:wt,amt:ad,nt:nt,status:st,issues:iss,suggested:suggested,amtNum:amt,sessionId:currentSessionId,rowIdx:i,isTotal:false};
   });
 
   aRows.sort(function(a,b){var na=parseInt((a.id||"").replace(/[^0-9]/g,""),10)||0;var nb=parseInt((b.id||"").replace(/[^0-9]/g,""),10)||0;return na-nb;});
@@ -403,14 +490,83 @@ function render(){
   function bdg(s){return{ok:'<span class="badge b-ok">&#10003; CLEAN</span>',error:'<span class="badge b-er">&#10007; ERROR</span>',warning:'<span class="badge b-wn">&#9888; WARN</span>',duplicate:'<span class="badge b-dp">&#10697; DUP</span>'}[s]||'<span class="badge b-ok">&#10003; CLEAN</span>';}
   function ic(s){return s==="error"?"#e74c3c":s==="duplicate"?"#2196F3":"#f39c12";}
   var ip=!!cMap.pdf;
+  var payConf=getPayConf();
   var rows=aRows.map(function(r){
-    var sugCell=r.status==="ok"?'<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>':(r.suggested===null?'<span style="font-size:10px;color:var(--w)">Needs Review</span>':r.suggested===0?'<span style="font-family:monospace;font-size:10px;color:var(--r)">$0.00</span>':'<span style="font-family:monospace;font-size:10px;color:var(--g)">$'+r.suggested.toFixed(2)+'</span>');
+    // ── TOTAL ROW ────────────────────────────────────────────────────────
+    if(r.isTotal){
+      var totalBadge=r.status==="warning"
+        ?'<span class="badge b-wn">&#9888; TOTAL MISMATCH</span>'
+        :'<span class="badge b-total">&#8721; TOTAL</span>';
+      var totalIss=r.status==="warning"
+        ?r.issues.map(function(x){return '<div class="il" style="color:#f39c12">'+xe(x)+"</div>";}).join("")
+        :'<span style="font-size:10px;color:var(--g7);font-style:italic">Matches line items</span>';
+      var dash='<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>';
+      return "<tr style='opacity:0.6'>"
+        +"<td style='font-family:monospace;color:var(--g7);font-size:10px'>"+r.row+"</td>"
+        +"<td style='font-family:monospace;font-size:10px'>"+xe(r.id)+"</td>"
+        +(ip?"":"<td style='font-size:10px'>"+xe(r.tk)+"</td>")
+        +"<td style='font-size:10px;font-style:italic;color:var(--g3)'>"+xe(r.sv)+"</td>"
+        +(ip?"<td></td>":"<td></td>")
+        +"<td style='font-family:monospace;font-size:10px'>"+r.amt+"</td>"
+        +"<td>"+dash+"</td>"
+        +"<td>"+totalBadge+"</td>"
+        +"<td>"+totalIss+"</td>"
+        +"<td>"+dash+"</td>"
+        +"</tr>";
+    }
+    // ── NORMAL ROW ───────────────────────────────────────────────────────
+    var pk=payKey(r.sessionId,r.rowIdx);
+    var conf=payConf[pk]||{amtPaid:"",status:"Pending"};
+    var sugCell=r.status==="ok"
+      ?'<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>'
+      :(r.suggested===null
+        ?'<span style="font-size:10px;color:var(--w)">Needs Review</span>'
+        :r.suggested===0
+          ?'<span style="font-family:monospace;font-size:10px;color:var(--r)">$0.00</span>'
+          :'<span style="font-family:monospace;font-size:10px;color:var(--g)">$'+r.suggested.toFixed(2)+'</span>');
     var showIssues=r.status!=="ok"&&(r.suggested===null||r.suggested===0);
-    var issCell=r.status==="ok"?'<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>':showIssues?(r.issues.length?r.issues.map(function(x){return '<div class="il" style="color:'+ic(r.status)+'">'+xe(x)+"</div>";}).join(""):'<span style="font-size:10px;color:var(--g7);font-style:italic">None</span>'):'<span style="font-size:10px;color:var(--g)">Fee updated</span>';
-    return "<tr><td style='font-family:monospace;color:var(--g7);font-size:10px'>"+r.row+"</td><td style='font-family:monospace;font-size:10px'>"+xe(r.id)+"</td>"+(ip?"":"<td style='font-size:10px'>"+xe(r.tk)+"</td>")+"<td>"+xe(r.sv)+"</td>"+(ip?"<td style='font-size:9px;color:var(--g7)'>"+xe(r.nt.slice(0,50))+"</td>":"<td style='font-size:10px'>"+xe(r.wt)+"</td>")+"<td style='font-family:monospace;font-size:10px'>"+r.amt+"</td><td>"+sugCell+"</td><td>"+bdg(r.status)+"</td><td>"+issCell+"</td></tr>";
+    var issCell=r.status==="ok"
+      ?'<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>'
+      :showIssues
+        ?(r.issues.length?r.issues.map(function(x){return '<div class="il" style="color:'+ic(r.status)+'">'+xe(x)+"</div>";}).join(""):'<span style="font-size:10px;color:var(--g7);font-style:italic">None</span>')
+        :'<span style="font-size:10px;color:var(--g)">Fee updated</span>';
+    // Inline payment confirmation cell — only on flagged rows
+    var payCell;
+    if(r.status==="ok"){
+      payCell='<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>';
+    } else {
+      var confBtnCls=conf.status==="Confirmed"?"pay-btn confirmed":"pay-btn";
+      var dispBtnCls=conf.status==="Disputed"?"pay-btn disputed":"pay-btn";
+      var statusPill=conf.status==="Confirmed"?'<span class="badge b-conf" style="font-size:7px">CONF</span>'
+        :conf.status==="Disputed"?'<span class="badge b-disp" style="font-size:7px">DISP</span>'
+        :'<span class="badge b-pend" style="font-size:7px">PEND</span>';
+      var safeKey=pk.replace(/'/g,"&#39;");
+      payCell="<div style='display:flex;align-items:center;gap:4px;flex-wrap:wrap'>"
+        +"<input class='pay-input' type='text' placeholder='$0.00'"
+        +" value='"+xe(conf.amtPaid)+"'"
+        +" data-pk='"+safeKey+"'"
+        +" onchange='upConf(this)'"
+        +" style='width:72px'/>"
+        +"<button class='"+confBtnCls+"' data-pk='"+safeKey+"' onclick='spConf(this,1)'>&#10003;</button>"
+        +"<button class='"+dispBtnCls+"' data-pk='"+safeKey+"' onclick='spConf(this,0)'>&#10007;</button>"
+        +statusPill
+        +"</div>";
+    }
+    return "<tr>"
+      +"<td style='font-family:monospace;color:var(--g7);font-size:10px'>"+r.row+"</td>"
+      +"<td style='font-family:monospace;font-size:10px'>"+xe(r.id)+"</td>"
+      +(ip?"":"<td style='font-size:10px'>"+xe(r.tk)+"</td>")
+      +"<td>"+xe(r.sv)+"</td>"
+      +(ip?"<td style='font-size:9px;color:var(--g7)'>"+xe(r.nt.slice(0,50))+"</td>":"<td style='font-size:10px'>"+xe(r.wt)+"</td>")
+      +"<td style='font-family:monospace;font-size:10px'>"+r.amt+"</td>"
+      +"<td>"+sugCell+"</td>"
+      +"<td>"+bdg(r.status)+"</td>"
+      +"<td>"+issCell+"</td>"
+      +"<td>"+payCell+"</td>"
+      +"</tr>";
   }).join("");
   function sc(l,v,c){return'<div class="sc"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+c+'"></div><div class="lb">'+l+'</div><div class="vl" style="color:'+c+'">'+v+"</div></div>";}
-  var ths=ip?"<th>#</th><th>Invoice/WO</th><th>Description</th><th>Notes</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th>":"<th>#</th><th>Work Order</th><th>WO Task</th><th>Service</th><th>Work Type</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th>";
+  var ths=ip?"<th>#</th><th>Invoice/WO</th><th>Description</th><th>Notes</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th><th>Payment</th>":"<th>#</th><th>Work Order</th><th>WO Task</th><th>Service</th><th>Work Type</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th><th>Payment</th>";
 
   // Build panels
   var auditHTML=
@@ -464,6 +620,8 @@ function renderConfirmTab(){
     +'<div class="tw"><table class="rt"><thead><tr><th>Work Order</th><th>Vendor</th><th>Service</th><th>Flagged Amt</th><th>Suggested</th><th>Amt Paid</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 
+function upConf(el){updatePayConf(el.dataset.pk,"amtPaid",el.value);}
+function spConf(el,confirm){setPayStatus(el.dataset.pk,confirm?"Confirmed":"Disputed");}
 function updatePayConf(pk,field,val){
   var payConf=getPayConf();
   if(!payConf[pk])payConf[pk]={amtPaid:"",status:"Pending"};
@@ -486,6 +644,7 @@ function calcTotals(){
   var payConf=getPayConf();
   var totalApproved=0,disputeAmount=0,totalSuggested=0;
   aRows.forEach(function(r){
+    if(r.isTotal)return; // skip total rows from financial calcs
     if(r.status==="ok"){
       // Clean row — always approved at billed amount
       totalApproved+=r.amtNum;
