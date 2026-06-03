@@ -525,6 +525,7 @@ function render(){
         +(ip?"<td></td>":"<td></td>")
         +"<td style='font-family:monospace;font-size:10px'>"+r.amt+"</td>"
         +"<td>"+dash+"</td>"
+        +"<td>"+dash+"</td>"
         +"<td>"+totalBadge+"</td>"
         +"<td>"+totalIss+"</td>"
         +"<td>"+dash+"</td>"
@@ -568,6 +569,17 @@ function render(){
         +statusPill
         +"</div>";
     }
+    // Approved cell — shows confirmed amt paid when confirmed, else dash
+    var approvedCell;
+    if(r.status==="ok"){
+      approvedCell='<span style="font-size:10px;color:var(--g7);font-style:italic">—</span>';
+    } else if(conf.status==="Confirmed"&&conf.amtPaid){
+      approvedCell='<span class="apv-cell" data-pk="'+pk.replace(/'/g,"&#39;")+'" style="font-family:monospace;font-size:10px;color:var(--g)">'+xe(conf.amtPaid)+'</span>';
+    } else if(conf.status==="Disputed"){
+      approvedCell='<span class="apv-cell" data-pk="'+pk.replace(/'/g,"&#39;")+'" style="font-family:monospace;font-size:10px;color:var(--r)">$0.00</span>';
+    } else {
+      approvedCell='<span class="apv-cell" data-pk="'+pk.replace(/'/g,"&#39;")+'" style="font-size:10px;color:var(--g7);font-style:italic">—</span>';
+    }
     return "<tr>"
       +"<td style='font-family:monospace;color:var(--g7);font-size:10px'>"+r.row+"</td>"
       +"<td style='font-family:monospace;font-size:10px'>"+xe(r.id)+"</td>"
@@ -576,13 +588,14 @@ function render(){
       +(ip?"<td style='font-size:9px;color:var(--g7)'>"+xe(r.nt.slice(0,50))+"</td>":"<td style='font-size:10px'>"+xe(r.wt)+"</td>")
       +"<td style='font-family:monospace;font-size:10px'>"+r.amt+"</td>"
       +"<td>"+sugCell+"</td>"
+      +"<td>"+approvedCell+"</td>"
       +"<td>"+bdg(r.status)+"</td>"
       +"<td>"+issCell+"</td>"
       +"<td>"+payCell+"</td>"
       +"</tr>";
   }).join("");
   function sc(l,v,c){return'<div class="sc"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+c+'"></div><div class="lb">'+l+'</div><div class="vl" style="color:'+c+'">'+v+"</div></div>";}
-  var ths=ip?"<th>#</th><th>Invoice/WO</th><th>Description</th><th>Notes</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th><th>Payment</th>":"<th>#</th><th>Work Order</th><th>WO Task</th><th>Service</th><th>Work Type</th><th>Amount</th><th>Suggested</th><th>Status</th><th>Issues</th><th>Payment</th>";
+  var ths=ip?"<th>#</th><th>Invoice/WO</th><th>Description</th><th>Notes</th><th>Amount</th><th>Suggested</th><th>Approved</th><th>Status</th><th>Issues</th><th>Payment</th>":"<th>#</th><th>Work Order</th><th>WO Task</th><th>Service</th><th>Work Type</th><th>Amount</th><th>Suggested</th><th>Approved</th><th>Status</th><th>Issues</th><th>Payment</th>";
 
   // Build panels
   var auditHTML=
@@ -679,22 +692,32 @@ function setPayStatus(pk,status){
 
 // Refresh a single inline payment cell after status change
 function refreshPayCell(pk,conf){
-  // Find the input with this data-pk and update siblings
-  var inputs=document.querySelectorAll(".pay-input[data-pk='"+pk.replace(/'/g,"&#39;")+"']");
+  var safeKey=pk.replace(/'/g,"&#39;");
+  // Update pay-input value and buttons
+  var inputs=document.querySelectorAll(".pay-input[data-pk='"+safeKey+"']");
   inputs.forEach(function(inp){
     inp.value=conf.amtPaid||"";
     var div=inp.parentElement;
     if(!div)return;
-    // Update button classes
     var btns=div.querySelectorAll(".pay-btn");
     if(btns[0]){btns[0].className=conf.status==="Confirmed"?"pay-btn confirmed":"pay-btn";}
     if(btns[1]){btns[1].className=conf.status==="Disputed"?"pay-btn disputed":"pay-btn";}
-    // Update status pill
     var pill=div.querySelector(".badge");
     if(pill){
       if(conf.status==="Confirmed"){pill.className="badge b-conf";pill.style.fontSize="7px";pill.textContent="CONF";}
       else if(conf.status==="Disputed"){pill.className="badge b-disp";pill.style.fontSize="7px";pill.textContent="DISP";}
       else{pill.className="badge b-pend";pill.style.fontSize="7px";pill.textContent="PEND";}
+    }
+  });
+  // Update Approved cell live
+  var apvCells=document.querySelectorAll(".apv-cell[data-pk='"+safeKey+"']");
+  apvCells.forEach(function(cell){
+    if(conf.status==="Confirmed"&&conf.amtPaid){
+      cell.style.color="var(--g)";cell.style.fontStyle="normal";cell.textContent=conf.amtPaid;
+    } else if(conf.status==="Disputed"){
+      cell.style.color="var(--r)";cell.style.fontStyle="normal";cell.textContent="$0.00";
+    } else {
+      cell.style.color="var(--g7)";cell.style.fontStyle="italic";cell.textContent="—";
     }
   });
 }
@@ -883,11 +906,22 @@ function expXL(){
     o["Service"]=r.sv;
     if(ip)o["Notes"]=r.nt;else o["Work Type"]=r.wt;
     o["Amount"]=r.amt;
-    o["Suggested"]=r.status==="ok"?"—":r.suggested===null?"Needs Review":"$"+r.suggested.toFixed(2);
+    var xlConf=payConf[payKey(r.sessionId,r.rowIdx)]||{amtPaid:"",status:"Pending"};
+    if(r.status==="ok"){
+      o["Suggested"]="—";o["Approved"]="—";
+    } else if(xlConf.status==="Confirmed"){
+      o["Suggested"]=r.suggested===null?"Needs Review":r.suggested===0?"$0.00":"$"+r.suggested.toFixed(2);
+      o["Approved"]=xlConf.amtPaid||r.amt;
+    } else if(xlConf.status==="Disputed"){
+      o["Suggested"]=r.suggested===null?"Needs Review":r.suggested===0?"$0.00":"$"+r.suggested.toFixed(2);
+      o["Approved"]="$0.00";
+    } else {
+      o["Suggested"]=r.suggested===null?"Needs Review":r.suggested===0?"$0.00":"$"+r.suggested.toFixed(2);
+      o["Approved"]="—";
+    }
     o["Status"]=r.status.toUpperCase();
     o["WOT Violation"]=r.issues.some(function(x){return x.includes("WOT");})?"YES":"";
     o["Issues"]=r.issues.join("; ");
-    o["Amt Paid"]=amtPaid;
     o["Payment Status"]=payStatus;
     return o;
   });
